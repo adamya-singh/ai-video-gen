@@ -215,18 +215,30 @@ export type Database = {
           created_at: string | null
           id: string
           project_id: string
+          video_style: string | null
+          first_image_confirmed_at: string | null
+          all_images_confirmed_at: string | null
+          first_video_confirmed_at: string | null
         }
         Insert: {
           approved_at?: string | null
           created_at?: string | null
           id?: string
           project_id: string
+          video_style?: string | null
+          first_image_confirmed_at?: string | null
+          all_images_confirmed_at?: string | null
+          first_video_confirmed_at?: string | null
         }
         Update: {
           approved_at?: string | null
           created_at?: string | null
           id?: string
           project_id?: string
+          video_style?: string | null
+          first_image_confirmed_at?: string | null
+          all_images_confirmed_at?: string | null
+          first_video_confirmed_at?: string | null
         }
         Relationships: [
           {

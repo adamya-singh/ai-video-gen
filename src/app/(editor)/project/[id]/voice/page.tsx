@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { ApprovalGate } from '@/components/editor/approval-gate'
-import { Mic, Play, Pause, Check, Loader2, Volume2 } from 'lucide-react'
+import { Mic, Play, Pause, Check, Loader2, Volume2, SkipForward, Video } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface VoicePageProps {
@@ -40,6 +40,7 @@ export default function VoicePage({ params }: VoicePageProps) {
   const [selectedVoice, setSelectedVoice] = useState('narrator')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
+  const [isSkipping, setIsSkipping] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [playingScene, setPlayingScene] = useState<string | null>(null)
   const router = useRouter()
@@ -127,6 +128,24 @@ export default function VoicePage({ params }: VoicePageProps) {
     }
   }
 
+  const handleSkipVoice = async () => {
+    setIsSkipping(true)
+
+    try {
+      await supabase
+        .from('projects')
+        .update({ current_step: 6 })
+        .eq('id', projectId)
+
+      router.push(`/project/${projectId}/export`)
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to skip')
+    } finally {
+      setIsSkipping(false)
+    }
+  }
+
   const togglePlayScene = (sceneId: string) => {
     if (playingScene === sceneId) {
       setPlayingScene(null)
@@ -152,6 +171,33 @@ export default function VoicePage({ params }: VoicePageProps) {
             <p className="text-gray-400 mt-2">
               Create AI voiceover for your documentary narration
             </p>
+          </div>
+
+          {/* Skip Voice Option */}
+          <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0">
+                  <Video className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-medium">Videos include audio</h3>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Your videos were generated with Veo 3 which includes native audio. 
+                    You can skip this step if you don't need separate voiceover narration.
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={handleSkipVoice}
+                isLoading={isSkipping}
+                className="shrink-0"
+              >
+                <SkipForward className="w-4 h-4 mr-2" />
+                Skip to Export
+              </Button>
+            </div>
           </div>
 
           {/* Voice selection */}
