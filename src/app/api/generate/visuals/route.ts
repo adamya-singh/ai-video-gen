@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { generateImage, base64ToBlob } from '@/lib/ai/image-service'
-import { generateVideo, downloadVideoFromUri } from '@/lib/ai/video-service'
+import { generateVideo } from '@/lib/ai/video-service'
 import { z } from 'zod'
 
 const requestSchema = z.object({
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
             status: 'complete',
             generation_metadata: {
               prompt: scene.image_prompt,
-              model: 'gemini-2.5-flash-preview-image-generation',
+              model: 'gemini-2.5-flash-image',
             },
           },
           {
@@ -167,8 +167,9 @@ export async function POST(request: NextRequest) {
           }
         )
 
-        // Generate video from the image using Veo 3.1 Fast
-        const videoPrompt = scene.video_prompt || 
+        // Generate video from the image using Veo 3
+        const videoPrompt =
+          scene.video_prompt ||
           `${scene.motion_type || 'subtle'} camera movement: ${scene.image_prompt}`
 
         const videoResult = await retryWithBackoff(async () => {
@@ -179,7 +180,8 @@ export async function POST(request: NextRequest) {
           )
         })
 
-        if (!videoResult.success || !videoResult.videoUri) {
+        // Video generation now returns buffer directly
+        if (!videoResult.success || !videoResult.videoBuffer) {
           await supabase.from('scenes').update({ status: 'failed' }).eq('id', scene.id)
           results.push({
             sceneId: scene.id,
@@ -190,25 +192,12 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        // Download the video from GCS
-        const videoDownload = await downloadVideoFromUri(videoResult.videoUri)
-        if (!videoDownload.success || !videoDownload.videoBuffer) {
-          await supabase.from('scenes').update({ status: 'failed' }).eq('id', scene.id)
-          results.push({
-            sceneId: scene.id,
-            success: false,
-            error: videoDownload.error || 'Video download failed',
-            imageUrl: imageUrl,
-          })
-          continue
-        }
-
         // Upload video to Supabase Storage
         const videoFileName = `${user.id}/${projectId}/video/scene_${String(i + 1).padStart(2, '0')}.mp4`
 
         const { error: videoUploadError } = await supabase.storage
           .from('assets')
-          .upload(videoFileName, videoDownload.videoBuffer, {
+          .upload(videoFileName, videoResult.videoBuffer, {
             contentType: 'video/mp4',
             upsert: true,
           })

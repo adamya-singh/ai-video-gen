@@ -1,7 +1,11 @@
 import { getVertexAIClient, MODELS } from './vertex-client'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
 
 export interface GenerateVideoResult {
   success: boolean
+  videoBuffer?: Buffer
   videoUri?: string
   error?: string
 }
@@ -11,7 +15,7 @@ const POLL_INTERVAL_MS = 5000 // 5 seconds between polls
 const MAX_POLL_ATTEMPTS = 120 // 10 minutes max wait time (120 * 5s)
 
 /**
- * Generate a video using Veo 3.1 Fast
+ * Generate a video using Veo 3 and return the video buffer directly
  * This is an async operation that requires polling for completion
  */
 export async function generateVideo(
@@ -23,7 +27,6 @@ export async function generateVideo(
     const client = getVertexAIClient()
 
     // Build the generation parameters
-    // Veo 3.1 can generate from text prompt or image + prompt
     const params: {
       model: string
       prompt?: string
@@ -40,9 +43,9 @@ export async function generateVideo(
       prompt: prompt,
       config: {
         numberOfVideos: 1,
-        durationSeconds: Math.min(durationSeconds, 8), // Veo 3.1 max is 8 seconds
+        durationSeconds: Math.min(durationSeconds, 8), // Veo max is 8 seconds
         aspectRatio: '16:9',
-        generateAudio: true, // Veo 3.1 supports audio generation
+        generateAudio: true, // Veo supports audio generation
       },
     }
 
@@ -88,7 +91,7 @@ export async function generateVideo(
     if (!currentOperation.done) {
       return {
         success: false,
-        error: `Video generation timed out after ${MAX_POLL_ATTEMPTS * POLL_INTERVAL_MS / 1000} seconds`,
+        error: `Video generation timed out after ${(MAX_POLL_ATTEMPTS * POLL_INTERVAL_MS) / 1000} seconds`,
       }
     }
 
@@ -100,7 +103,7 @@ export async function generateVideo(
       }
     }
 
-    // Extract the video URI from the response
+    // Extract the video from the response
     const generatedVideos = currentOperation.response?.generatedVideos
     if (!generatedVideos || generatedVideos.length === 0) {
       // Check if filtered by RAI
@@ -116,17 +119,81 @@ export async function generateVideo(
       }
     }
 
-    const videoUri = generatedVideos[0].video?.uri
-    if (!videoUri) {
+    const generatedVideo = generatedVideos[0]
+    const video = generatedVideo.video
+
+    if (!video) {
       return {
         success: false,
-        error: 'No video URI in response',
+        error: 'No video object in response',
+      }
+    }
+
+    // Check if we got video bytes directly (preferred)
+    if (video.videoBytes) {
+      console.log('Video returned with direct bytes')
+      const videoBuffer = Buffer.from(video.videoBytes, 'base64')
+      return {
+        success: true,
+        videoBuffer,
+        videoUri: video.uri,
+      }
+    }
+
+    // If no direct bytes, download from URI using SDK
+    if (video.uri) {
+      console.log(`Downloading video from URI: ${video.uri}`)
+      
+      // Use SDK's download method - it handles GCS authentication
+      const tempDir = os.tmpdir()
+      const tempFilePath = path.join(tempDir, `veo-video-${Date.now()}.mp4`)
+
+      try {
+        await client.files.download({
+          file: generatedVideo,
+          downloadPath: tempFilePath,
+        })
+
+        // Read the downloaded file
+        const videoBuffer = fs.readFileSync(tempFilePath)
+        
+        // Clean up temp file
+        fs.unlinkSync(tempFilePath)
+
+        return {
+          success: true,
+          videoBuffer,
+          videoUri: video.uri,
+        }
+      } catch (downloadError) {
+        console.error('SDK download failed, trying direct fetch:', downloadError)
+        
+        // Fallback: try direct fetch (might work for signed URLs)
+        try {
+          const response = await fetch(video.uri)
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer()
+            return {
+              success: true,
+              videoBuffer: Buffer.from(arrayBuffer),
+              videoUri: video.uri,
+            }
+          }
+        } catch {
+          // Ignore fallback error
+        }
+        
+        return {
+          success: false,
+          error: `Failed to download video: ${downloadError instanceof Error ? downloadError.message : 'Unknown error'}`,
+          videoUri: video.uri,
+        }
       }
     }
 
     return {
-      success: true,
-      videoUri: videoUri,
+      success: false,
+      error: 'No video bytes or URI in response',
     }
   } catch (error) {
     console.error('Video generation error:', error)
@@ -137,44 +204,6 @@ export async function generateVideo(
   }
 }
 
-/**
- * Download video from GCS URI and return as buffer
- * The video URI from Veo is typically a GCS URI that needs to be downloaded
- */
-export async function downloadVideoFromUri(videoUri: string): Promise<{
-  success: boolean
-  videoBuffer?: Buffer
-  error?: string
-}> {
-  try {
-    // If it's a GCS URI (gs://...), we need to construct a download URL
-    // For Vertex AI, the returned URI should be directly accessible with auth
-    const response = await fetch(videoUri)
-
-    if (!response.ok) {
-      return {
-        success: false,
-        error: `Failed to download video: ${response.status} ${response.statusText}`,
-      }
-    }
-
-    const arrayBuffer = await response.arrayBuffer()
-    const videoBuffer = Buffer.from(arrayBuffer)
-
-    return {
-      success: true,
-      videoBuffer,
-    }
-  } catch (error) {
-    console.error('Video download error:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error during video download',
-    }
-  }
-}
-
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
-
