@@ -4,16 +4,15 @@ import { useState, useEffect, use, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { SequentialVideoPlayer, VideoSource } from '@/components/video/sequential-player'
-import { 
-  concatenateVideos, 
-  concatenateWithMusic,
-  downloadVideo, 
-  createPreviewUrl,
-  cleanupFFmpeg,
-  ProcessingProgress 
-} from '@/lib/video/ffmpeg-processor'
 import { Download, Play, Film, Music, Volume2, Check, Loader2, Clock, Settings, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+// Define ProcessingProgress locally to avoid any imports from ffmpeg-processor at bundle time
+interface ProcessingProgress {
+  stage: 'loading' | 'fetching' | 'processing' | 'encoding' | 'complete'
+  progress: number
+  message: string
+}
 
 interface ExportPageProps {
   params: Promise<{ id: string }>
@@ -123,7 +122,10 @@ export default function ExportPage({ params }: ExportPageProps) {
       if (exportedVideoUrl) {
         URL.revokeObjectURL(exportedVideoUrl)
       }
-      cleanupFFmpeg()
+      // Dynamically import cleanup function
+      import('@/lib/video/ffmpeg-processor').then(({ cleanupFFmpeg }) => {
+        cleanupFFmpeg()
+      })
     }
   }, [exportedVideoUrl])
 
@@ -163,6 +165,9 @@ export default function ExportPage({ params }: ExportPageProps) {
     setExportedBlob(null)
 
     try {
+      // Dynamically import FFmpeg processor functions at runtime
+      const { concatenateVideos, concatenateWithMusic, createPreviewUrl } = await import('@/lib/video/ffmpeg-processor')
+      
       // Prepare video clips data
       const clips = videoSources.map(v => ({
         url: v.url,
@@ -207,8 +212,10 @@ export default function ExportPage({ params }: ExportPageProps) {
     }
   }
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (exportedBlob) {
+      // Dynamically import downloadVideo at runtime
+      const { downloadVideo } = await import('@/lib/video/ffmpeg-processor')
       const filename = `${project?.title || 'documentary'}_${selectedQuality}.mp4`
         .toLowerCase()
         .replace(/\s+/g, '_')

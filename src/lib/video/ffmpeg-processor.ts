@@ -1,13 +1,10 @@
 'use client'
 
-// Dynamic imports are used to avoid Next.js bundler errors with @ffmpeg/ffmpeg
-// The library uses internal dynamic imports that can't be statically analyzed
+// FFmpeg WASM processor
+// Uses FFmpeg 0.10.1 which is a simpler single-file build without code splitting issues
 
-// Type for FFmpeg instance (imported dynamically at runtime)
-type FFmpegInstance = InstanceType<Awaited<typeof import('@ffmpeg/ffmpeg')>['FFmpeg']>
-
-// Singleton FFmpeg instance
-let ffmpeg: FFmpegInstance | null = null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let ffmpeg: any = null
 let isLoaded = false
 
 export interface VideoClip {
@@ -25,9 +22,25 @@ export interface ProcessingProgress {
 export type ProgressCallback = (progress: ProcessingProgress) => void
 
 /**
- * Initialize and load FFmpeg WASM
+ * Fetch a file and return as Uint8Array
  */
-export async function initFFmpeg(onProgress?: ProgressCallback): Promise<FFmpegInstance> {
+async function fetchFile(input: string | URL | File | Blob): Promise<Uint8Array> {
+  if (input instanceof File || input instanceof Blob) {
+    const arrayBuffer = await input.arrayBuffer()
+    return new Uint8Array(arrayBuffer)
+  }
+  
+  const response = await fetch(input.toString())
+  const arrayBuffer = await response.arrayBuffer()
+  return new Uint8Array(arrayBuffer)
+}
+
+/**
+ * Initialize and load FFmpeg WASM using the older 0.10.1 version
+ * This version doesn't have code splitting issues
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function initFFmpeg(onProgress?: ProgressCallback): Promise<any> {
   if (ffmpeg && isLoaded) {
     return ffmpeg
   }
@@ -38,33 +51,59 @@ export async function initFFmpeg(onProgress?: ProgressCallback): Promise<FFmpegI
     message: 'Loading FFmpeg...',
   })
 
-  // Dynamic import FFmpeg at runtime to avoid bundler issues
-  const { FFmpeg } = await import('@ffmpeg/ffmpeg')
-  const { toBlobURL } = await import('@ffmpeg/util')
-
-  ffmpeg = new FFmpeg()
-
-  // Set up logging for debugging
-  ffmpeg.on('log', ({ message }) => {
-    console.log('[FFmpeg]', message)
-  })
-
-  // Track encoding progress
-  ffmpeg.on('progress', ({ progress }) => {
-    onProgress?.({
-      stage: 'encoding',
-      progress: Math.round(progress * 100),
-      message: `Encoding: ${Math.round(progress * 100)}%`,
-    })
-  })
-
-  // Load FFmpeg core from CDN
-  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm'
+  // Use FFmpeg 0.10.1 - older but simpler, no code splitting
+  const ffmpegUrl = 'https://unpkg.com/@ffmpeg/ffmpeg@0.10.1/dist/ffmpeg.min.js'
   
-  await ffmpeg.load({
-    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+  // Load the FFmpeg script via script tag
+  await new Promise<void>((resolve, reject) => {
+    // Check if already loaded
+    if ((window as any).FFmpeg) {
+      resolve()
+      return
+    }
+    
+    const script = document.createElement('script')
+    script.src = ffmpegUrl
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Failed to load FFmpeg'))
+    document.head.appendChild(script)
   })
+
+  onProgress?.({
+    stage: 'loading',
+    progress: 30,
+    message: 'Initializing FFmpeg...',
+  })
+
+  // Access FFmpeg from the global scope
+  const { createFFmpeg, fetchFile: ffmpegFetchFile } = (window as any).FFmpeg
+  if (!createFFmpeg) {
+    throw new Error('FFmpeg not found in global scope')
+  }
+
+  // Create FFmpeg instance
+  ffmpeg = createFFmpeg({
+    log: true,
+    progress: ({ ratio }: { ratio: number }) => {
+      onProgress?.({
+        stage: 'encoding',
+        progress: Math.round(ratio * 100),
+        message: `Encoding: ${Math.round(ratio * 100)}%`,
+      })
+    },
+  })
+
+  // Store fetchFile for later use
+  ffmpeg._fetchFile = ffmpegFetchFile
+
+  onProgress?.({
+    stage: 'loading',
+    progress: 50,
+    message: 'Loading FFmpeg core...',
+  })
+
+  // Load the FFmpeg core
+  await ffmpeg.load()
 
   isLoaded = true
   
@@ -81,15 +120,14 @@ export async function initFFmpeg(onProgress?: ProgressCallback): Promise<FFmpegI
  * Fetch video files and write them to FFmpeg's virtual filesystem
  */
 async function fetchAndWriteVideos(
-  ffmpegInstance: FFmpegInstance,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ffmpegInstance: any,
   clips: VideoClip[],
   onProgress?: ProgressCallback
 ): Promise<string[]> {
-  // Dynamic import fetchFile at runtime
-  const { fetchFile } = await import('@ffmpeg/util')
-  
   const fileNames: string[] = []
   const totalClips = clips.length
+  const ffmpegFetchFile = ffmpegInstance._fetchFile || fetchFile
 
   for (let i = 0; i < clips.length; i++) {
     const clip = clips[i]
@@ -102,8 +140,8 @@ async function fetchAndWriteVideos(
     })
 
     try {
-      const videoData = await fetchFile(clip.url)
-      await ffmpegInstance.writeFile(fileName, videoData)
+      const videoData = await ffmpegFetchFile(clip.url)
+      ffmpegInstance.FS('writeFile', fileName, videoData)
       fileNames.push(fileName)
     } catch (error) {
       console.error(`Failed to fetch video ${i}:`, error)
@@ -117,10 +155,11 @@ async function fetchAndWriteVideos(
 /**
  * Create a concat demuxer file list for FFmpeg
  */
-async function createConcatFile(ffmpegInstance: FFmpegInstance, fileNames: string[]): Promise<void> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createConcatFile(ffmpegInstance: any, fileNames: string[]): void {
   const fileList = fileNames.map(name => `file '${name}'`).join('\n')
   const encoder = new TextEncoder()
-  await ffmpegInstance.writeFile('filelist.txt', encoder.encode(fileList))
+  ffmpegInstance.FS('writeFile', 'filelist.txt', encoder.encode(fileList))
 }
 
 /**
@@ -146,7 +185,7 @@ export async function concatenateVideos(
   })
 
   // Create concat file list
-  await createConcatFile(ff, fileNames)
+  createConcatFile(ff, fileNames)
 
   onProgress?.({
     stage: 'encoding',
@@ -156,13 +195,13 @@ export async function concatenateVideos(
 
   // Run FFmpeg concat command
   // Using concat demuxer which is fast when videos have same codec
-  await ff.exec([
+  await ff.run(
     '-f', 'concat',
     '-safe', '0',
     '-i', 'filelist.txt',
     '-c', 'copy',
     'output.mp4'
-  ])
+  )
 
   onProgress?.({
     stage: 'complete',
@@ -171,17 +210,17 @@ export async function concatenateVideos(
   })
 
   // Read the output file
-  const outputData = await ff.readFile('output.mp4')
+  const outputData = ff.FS('readFile', 'output.mp4')
   
   // Clean up files from virtual filesystem
   for (const fileName of fileNames) {
-    await ff.deleteFile(fileName)
+    ff.FS('unlink', fileName)
   }
-  await ff.deleteFile('filelist.txt')
-  await ff.deleteFile('output.mp4')
+  ff.FS('unlink', 'filelist.txt')
+  ff.FS('unlink', 'output.mp4')
 
-  // Create blob from output - convert to Uint8Array to ensure compatibility
-  const blob = new Blob([new Uint8Array(outputData as Uint8Array)], { type: 'video/mp4' })
+  // Create blob from output
+  const blob = new Blob([outputData.buffer], { type: 'video/mp4' })
   
   onProgress?.({
     stage: 'complete',
@@ -206,12 +245,13 @@ export async function concatenateWithMusic(
   
   // Initialize FFmpeg
   const ff = await initFFmpeg(onProgress)
+  const ffmpegFetchFile = ff._fetchFile || fetchFile
 
   // Fetch and write all videos
   const fileNames = await fetchAndWriteVideos(ff, sortedClips, onProgress)
 
   // Create concat file list
-  await createConcatFile(ff, fileNames)
+  createConcatFile(ff, fileNames)
 
   onProgress?.({
     stage: 'processing',
@@ -220,26 +260,26 @@ export async function concatenateWithMusic(
   })
 
   // First, concatenate all videos
-  await ff.exec([
+  await ff.run(
     '-f', 'concat',
     '-safe', '0',
     '-i', 'filelist.txt',
     '-c', 'copy',
     'concatenated.mp4'
-  ])
+  )
 
   // If no music, just return the concatenated video
   if (!musicUrl) {
-    const outputData = await ff.readFile('concatenated.mp4')
+    const outputData = ff.FS('readFile', 'concatenated.mp4')
     
     // Cleanup
     for (const fileName of fileNames) {
-      await ff.deleteFile(fileName)
+      ff.FS('unlink', fileName)
     }
-    await ff.deleteFile('filelist.txt')
-    await ff.deleteFile('concatenated.mp4')
+    ff.FS('unlink', 'filelist.txt')
+    ff.FS('unlink', 'concatenated.mp4')
     
-    return new Blob([new Uint8Array(outputData as Uint8Array)], { type: 'video/mp4' })
+    return new Blob([outputData.buffer], { type: 'video/mp4' })
   }
 
   onProgress?.({
@@ -248,12 +288,9 @@ export async function concatenateWithMusic(
     message: 'Adding background music...',
   })
 
-  // Dynamic import fetchFile for music
-  const { fetchFile } = await import('@ffmpeg/util')
-  
   // Fetch and write music file
-  const musicData = await fetchFile(musicUrl)
-  await ff.writeFile('music.mp3', musicData)
+  const musicData = await ffmpegFetchFile(musicUrl)
+  ff.FS('writeFile', 'music.mp3', musicData)
 
   onProgress?.({
     stage: 'encoding',
@@ -262,8 +299,7 @@ export async function concatenateWithMusic(
   })
 
   // Mix the original audio with background music
-  // The filter: mix original audio (volume 1.0) with music (volume specified)
-  await ff.exec([
+  await ff.run(
     '-i', 'concatenated.mp4',
     '-i', 'music.mp3',
     '-filter_complex', `[0:a]volume=1.0[a0];[1:a]volume=${musicVolume}[a1];[a0][a1]amix=inputs=2:duration=first[aout]`,
@@ -273,7 +309,7 @@ export async function concatenateWithMusic(
     '-c:a', 'aac',
     '-shortest',
     'output.mp4'
-  ])
+  )
 
   onProgress?.({
     stage: 'complete',
@@ -282,18 +318,18 @@ export async function concatenateWithMusic(
   })
 
   // Read the final output
-  const outputData = await ff.readFile('output.mp4')
+  const outputData = ff.FS('readFile', 'output.mp4')
 
   // Cleanup all files
   for (const fileName of fileNames) {
-    await ff.deleteFile(fileName)
+    ff.FS('unlink', fileName)
   }
-  await ff.deleteFile('filelist.txt')
-  await ff.deleteFile('concatenated.mp4')
-  await ff.deleteFile('music.mp3')
-  await ff.deleteFile('output.mp4')
+  ff.FS('unlink', 'filelist.txt')
+  ff.FS('unlink', 'concatenated.mp4')
+  ff.FS('unlink', 'music.mp3')
+  ff.FS('unlink', 'output.mp4')
 
-  const blob = new Blob([new Uint8Array(outputData as Uint8Array)], { type: 'video/mp4' })
+  const blob = new Blob([outputData.buffer], { type: 'video/mp4' })
 
   onProgress?.({
     stage: 'complete',
@@ -330,7 +366,11 @@ export function createPreviewUrl(blob: Blob): string {
  */
 export function cleanupFFmpeg(): void {
   if (ffmpeg) {
-    ffmpeg.terminate()
+    try {
+      ffmpeg.exit()
+    } catch {
+      // Ignore exit errors
+    }
     ffmpeg = null
     isLoaded = false
   }
