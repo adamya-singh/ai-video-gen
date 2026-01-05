@@ -49,6 +49,7 @@ export default function ShotListPage({ params }: ShotListPageProps) {
   const [error, setError] = useState<string | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [projectSettings, setProjectSettings] = useState<ProjectSettings | null>(null)
+  const [sceneCount, setSceneCount] = useState<number>(8)
   const router = useRouter()
   const supabase = createClient()
 
@@ -84,6 +85,9 @@ export default function ShotListPage({ params }: ShotListPageProps) {
 
         if (scenesData) {
           setScenes(scenesData)
+          if (scenesData.length > 0) {
+            setSceneCount(scenesData.length)
+          }
         }
       }
     }
@@ -101,6 +105,7 @@ export default function ShotListPage({ params }: ShotListPageProps) {
         body: JSON.stringify({ 
           projectId,
           model: projectSettings?.llm_model || 'claude-sonnet-4-5',
+          sceneCount,
         }),
       })
 
@@ -236,14 +241,29 @@ export default function ShotListPage({ params }: ShotListPageProps) {
               <div />
             )}
             
-            <Button
-              onClick={handleGenerate}
-              isLoading={isGenerating}
-              variant={scenes.length > 0 ? 'secondary' : 'primary'}
-            >
-              <Sparkles className="w-4 h-4 mr-2" />
-              {scenes.length > 0 ? 'Regenerate' : 'Generate Shot List'}
-            </Button>
+            <div className="flex items-center gap-3">
+              {scenes.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={sceneCount}
+                    onChange={(e) => setSceneCount(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                    className="w-16 px-3 py-2 text-sm rounded-lg border border-[rgb(45,45,55)] bg-[rgb(18,18,22)] text-white focus:border-purple-500 focus:outline-none text-center"
+                    min={1}
+                    max={20}
+                  />
+                  <span className="text-sm text-gray-400">scenes</span>
+                </div>
+              )}
+              <Button
+                onClick={handleGenerate}
+                isLoading={isGenerating}
+                variant={scenes.length > 0 ? 'secondary' : 'primary'}
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                {scenes.length > 0 ? 'Regenerate' : 'Generate Shot List'}
+              </Button>
+            </div>
           </div>
 
           {error && (

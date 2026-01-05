@@ -7,6 +7,7 @@ import { z } from 'zod'
 const requestSchema = z.object({
   projectId: z.string().uuid(),
   model: z.enum(['gpt-4-turbo', 'claude-sonnet-4-5']).optional().default('claude-sonnet-4-5'),
+  sceneCount: z.number().min(1).max(20).optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { projectId, model } = requestSchema.parse(body)
+    const { projectId, model, sceneCount } = requestSchema.parse(body)
 
     // Get project
     const { data: project } = await supabase
@@ -44,11 +45,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Build the prompt
+    const targetScenes = sceneCount || Math.ceil((script.word_count || 1500) / 150)
     const userPrompt = `Create a shot list for this documentary script:
 
 ${script.full_script}
 
-Create approximately ${Math.ceil((script.word_count || 1500) / 150)} scenes to cover the entire script.
+Create exactly ${targetScenes} scenes to tell this story. Divide the script evenly across all ${targetScenes} scenes.
 Each scene should be 10-20 seconds of video content.
 `
 

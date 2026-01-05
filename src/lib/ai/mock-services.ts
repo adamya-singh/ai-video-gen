@@ -73,28 +73,61 @@ export async function mockGenerateVoice(text: string): Promise<{
   }
 }
 
-export function getMockCostEstimate(scenes: number): {
-  images: { count: number, unitCost: number, total: number }
-  videos: { count: number, unitCost: number, total: number }
-  voice: { minutes: number, unitCost: number, total: number }
+/**
+ * Cost estimation for visual generation using Vertex AI
+ * 
+ * Pricing (as of 2024):
+ * - Gemini 2.5 Flash Image: ~$0.02-0.04 per image
+ * - Veo 3.1 Fast (video + audio): ~$0.05/second of video
+ * - ElevenLabs voice: ~$0.30 per minute
+ */
+export function getCostEstimate(scenes: number, avgVideoDurationSeconds: number = 5): {
+  images: { count: number; unitCost: number; total: number; model: string }
+  videos: { count: number; secondsPerVideo: number; costPerSecond: number; total: number; model: string }
+  voice: { minutes: number; unitCost: number; total: number }
   subtotal: number
   platformFee: number
   total: number
 } {
-  const imageCost = scenes * 0.20
-  const videoCost = scenes * 1.20
+  // Gemini 2.5 Flash Image pricing
+  const imageUnitCost = 0.03 // ~$0.03 per image (average)
+  const imageCost = scenes * imageUnitCost
+
+  // Veo 3.1 Fast pricing: $0.05/second for video+audio
+  const videoCostPerSecond = 0.05
+  const videoCost = scenes * avgVideoDurationSeconds * videoCostPerSecond
+
+  // ElevenLabs voice pricing (unchanged)
   const voiceCost = Math.ceil(scenes * 0.25) * 0.30 // ~15 seconds per scene
 
   const subtotal = imageCost + videoCost + voiceCost
   const platformFee = subtotal * 0.15
 
   return {
-    images: { count: scenes, unitCost: 0.20, total: imageCost },
-    videos: { count: scenes, unitCost: 1.20, total: videoCost },
-    voice: { minutes: Math.ceil(scenes * 0.25), unitCost: 0.30, total: voiceCost },
+    images: { 
+      count: scenes, 
+      unitCost: imageUnitCost, 
+      total: imageCost,
+      model: 'gemini-2.5-flash-image'
+    },
+    videos: { 
+      count: scenes, 
+      secondsPerVideo: avgVideoDurationSeconds,
+      costPerSecond: videoCostPerSecond, 
+      total: videoCost,
+      model: 'veo-3.1-fast'
+    },
+    voice: { 
+      minutes: Math.ceil(scenes * 0.25), 
+      unitCost: 0.30, 
+      total: voiceCost 
+    },
     subtotal,
     platformFee,
     total: subtotal + platformFee,
   }
 }
+
+// Backwards compatibility alias
+export const getMockCostEstimate = getCostEstimate
 
