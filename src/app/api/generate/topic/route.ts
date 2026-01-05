@@ -7,7 +7,7 @@ import { z } from 'zod'
 const requestSchema = z.object({
   projectId: z.string().uuid(),
   rawInput: z.string().min(10, 'Please provide at least 10 characters'),
-  model: z.enum(['gpt-4-turbo', 'claude-3.5-sonnet']).optional().default('gpt-4-turbo'),
+  model: z.enum(['gpt-4-turbo', 'claude-sonnet-4-5']).optional().default('claude-sonnet-4-5'),
   refinementFeedback: z.string().optional(),
 })
 

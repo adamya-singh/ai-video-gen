@@ -43,7 +43,7 @@ export function CreateProjectButton() {
         status: 'draft',
         current_step: 1,
         settings: {
-          llm_model: 'gpt-4-turbo',
+          llm_model: 'claude-sonnet-4-5',
         },
       })
       .select()

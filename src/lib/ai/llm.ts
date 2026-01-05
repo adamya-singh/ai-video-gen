@@ -9,7 +9,7 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-export type LLMModel = 'gpt-4-turbo' | 'claude-3.5-sonnet'
+export type LLMModel = 'gpt-4-turbo' | 'claude-sonnet-4-5'
 
 interface LLMMessage {
   role: 'system' | 'user' | 'assistant'
@@ -18,7 +18,7 @@ interface LLMMessage {
 
 export async function generateWithLLM(
   messages: LLMMessage[],
-  model: LLMModel = 'gpt-4-turbo'
+  model: LLMModel = 'claude-sonnet-4-5'
 ): Promise<string> {
   if (model === 'gpt-4-turbo' || model.startsWith('gpt')) {
     const response = await openai.chat.completions.create({
@@ -38,7 +38,7 @@ export async function generateWithLLM(
     const otherMessages = messages.filter(m => m.role !== 'system')
 
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       system: systemMessage?.content || '',
       messages: otherMessages.map(m => ({
@@ -57,7 +57,7 @@ export async function generateWithLLM(
 
 export async function streamWithLLM(
   messages: LLMMessage[],
-  model: LLMModel = 'gpt-4-turbo'
+  model: LLMModel = 'claude-sonnet-4-5'
 ): Promise<ReadableStream> {
   if (model === 'gpt-4-turbo' || model.startsWith('gpt')) {
     const response = await openai.chat.completions.create({
@@ -88,7 +88,7 @@ export async function streamWithLLM(
     const otherMessages = messages.filter(m => m.role !== 'system')
 
     const response = await anthropic.messages.stream({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       system: systemMessage?.content || '',
       messages: otherMessages.map(m => ({

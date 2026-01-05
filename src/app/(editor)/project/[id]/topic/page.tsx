@@ -26,6 +26,11 @@ interface TopicData {
   approved_at: string | null
 }
 
+interface ProjectSettings {
+  llm_model?: string
+  [key: string]: unknown
+}
+
 export default function TopicPage({ params }: TopicPageProps) {
   const { id: projectId } = use(params)
   const [rawInput, setRawInput] = useState('')
@@ -37,12 +42,25 @@ export default function TopicPage({ params }: TopicPageProps) {
   const [isApproving, setIsApproving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refinementFeedback, setRefinementFeedback] = useState('')
+  const [projectSettings, setProjectSettings] = useState<ProjectSettings | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
-  // Load existing topic
+  // Load existing topic and project settings
   useEffect(() => {
-    async function loadTopic() {
+    async function loadData() {
+      // Load project settings
+      const { data: projectData } = await supabase
+        .from('projects')
+        .select('settings')
+        .eq('id', projectId)
+        .single()
+      
+      if (projectData?.settings) {
+        setProjectSettings(projectData.settings as ProjectSettings)
+      }
+
+      // Load topic
       const { data } = await supabase
         .from('topics')
         .select('*')
@@ -58,7 +76,7 @@ export default function TopicPage({ params }: TopicPageProps) {
         }
       }
     }
-    loadTopic()
+    loadData()
   }, [projectId, supabase])
 
   const handleGenerate = async () => {
@@ -70,6 +88,12 @@ export default function TopicPage({ params }: TopicPageProps) {
     setIsGenerating(true)
     setError(null)
 
+    // Ensure we only send valid model values
+    const validModels = ['gpt-4-turbo', 'claude-sonnet-4-5'] as const
+    const model = validModels.includes(projectSettings?.llm_model as typeof validModels[number])
+      ? projectSettings?.llm_model
+      : 'claude-sonnet-4-5'
+
     try {
       const response = await fetch('/api/generate/topic', {
         method: 'POST',
@@ -78,6 +102,7 @@ export default function TopicPage({ params }: TopicPageProps) {
           projectId,
           rawInput,
           refinementFeedback: refinementFeedback || undefined,
+          model,
         }),
       })
 
@@ -306,4 +331,3 @@ export default function TopicPage({ params }: TopicPageProps) {
     </div>
   )
 }
-

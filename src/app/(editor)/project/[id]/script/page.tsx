@@ -26,6 +26,11 @@ interface ScriptData {
   approved_at: string | null
 }
 
+interface ProjectSettings {
+  llm_model?: string
+  [key: string]: unknown
+}
+
 export default function ScriptPage({ params }: ScriptPageProps) {
   const { id: projectId } = use(params)
   const [script, setScript] = useState<ScriptData | null>(null)
@@ -36,12 +41,25 @@ export default function ScriptPage({ params }: ScriptPageProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refinementFeedback, setRefinementFeedback] = useState('')
+  const [projectSettings, setProjectSettings] = useState<ProjectSettings | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
-  // Load existing script
+  // Load existing script and project settings
   useEffect(() => {
-    async function loadScript() {
+    async function loadData() {
+      // Load project settings
+      const { data: projectData } = await supabase
+        .from('projects')
+        .select('settings')
+        .eq('id', projectId)
+        .single()
+      
+      if (projectData?.settings) {
+        setProjectSettings(projectData.settings as ProjectSettings)
+      }
+
+      // Load script
       const { data } = await supabase
         .from('scripts')
         .select('*')
@@ -53,7 +71,7 @@ export default function ScriptPage({ params }: ScriptPageProps) {
         setEditedScript(data.full_script || '')
       }
     }
-    loadScript()
+    loadData()
   }, [projectId, supabase])
 
   const handleGenerate = async () => {
@@ -67,6 +85,7 @@ export default function ScriptPage({ params }: ScriptPageProps) {
         body: JSON.stringify({
           projectId,
           refinementFeedback: refinementFeedback || undefined,
+          model: projectSettings?.llm_model || 'claude-sonnet-4-5',
         }),
       })
 
@@ -313,4 +332,3 @@ export default function ScriptPage({ params }: ScriptPageProps) {
     </div>
   )
 }
-

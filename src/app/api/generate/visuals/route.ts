@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     // Verify project ownership
     const { data: project } = await supabase
       .from('projects')
-      .select('*, shot_lists(*)')
+      .select('*')
       .eq('id', projectId)
       .single()
 
@@ -31,7 +31,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    const shotList = project.shot_lists?.[0]
+    // Get shot list directly (more reliable than join)
+    const { data: shotList } = await supabase
+      .from('shot_lists')
+      .select('*')
+      .eq('project_id', projectId)
+      .single()
+
     if (!shotList) {
       return NextResponse.json({ error: 'Shot list not found' }, { status: 404 })
     }

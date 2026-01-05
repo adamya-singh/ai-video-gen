@@ -28,6 +28,11 @@ interface ShotListData {
   approved_at: string | null
 }
 
+interface ProjectSettings {
+  llm_model?: string
+  [key: string]: unknown
+}
+
 const MOTION_TYPES = [
   { value: 'ken_burns', label: 'Ken Burns', description: 'Slow pan & zoom' },
   { value: 'subtle', label: 'Subtle', description: 'Slight movement' },
@@ -43,12 +48,25 @@ export default function ShotListPage({ params }: ShotListPageProps) {
   const [isApproving, setIsApproving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [projectSettings, setProjectSettings] = useState<ProjectSettings | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
-  // Load existing shot list
+  // Load existing shot list and project settings
   useEffect(() => {
-    async function loadShotList() {
+    async function loadData() {
+      // Load project settings
+      const { data: projectData } = await supabase
+        .from('projects')
+        .select('settings')
+        .eq('id', projectId)
+        .single()
+      
+      if (projectData?.settings) {
+        setProjectSettings(projectData.settings as ProjectSettings)
+      }
+
+      // Load shot list
       const { data: shotListData } = await supabase
         .from('shot_lists')
         .select('*')
@@ -69,7 +87,7 @@ export default function ShotListPage({ params }: ShotListPageProps) {
         }
       }
     }
-    loadShotList()
+    loadData()
   }, [projectId, supabase])
 
   const handleGenerate = async () => {
@@ -80,7 +98,10 @@ export default function ShotListPage({ params }: ShotListPageProps) {
       const response = await fetch('/api/generate/shot-list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ 
+          projectId,
+          model: projectSettings?.llm_model || 'claude-sonnet-4-5',
+        }),
       })
 
       const data = await response.json()
@@ -395,4 +416,3 @@ function SceneEditor({
     </div>
   )
 }
-

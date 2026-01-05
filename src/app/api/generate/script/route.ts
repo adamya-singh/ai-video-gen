@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 const requestSchema = z.object({
   projectId: z.string().uuid(),
-  model: z.enum(['gpt-4-turbo', 'claude-3.5-sonnet']).optional().default('gpt-4-turbo'),
+  model: z.enum(['gpt-4-turbo', 'claude-sonnet-4-5']).optional().default('claude-sonnet-4-5'),
   refinementFeedback: z.string().optional(),
 })
 
@@ -22,10 +22,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { projectId, model, refinementFeedback } = requestSchema.parse(body)
 
-    // Get project and topic
+    // Get project
     const { data: project } = await supabase
       .from('projects')
-      .select('*, topics(*)')
+      .select('*')
       .eq('id', projectId)
       .single()
 
@@ -33,7 +33,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    const topic = project.topics?.[0]
+    // Get topic directly (more reliable than join)
+    const { data: topic } = await supabase
+      .from('topics')
+      .select('*')
+      .eq('project_id', projectId)
+      .single()
+
     if (!topic || !topic.approved_at) {
       return NextResponse.json({ error: 'Topic not approved yet' }, { status: 400 })
     }
