@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    const shotList = project.shot_lists?.[0]
+    const shotList = project.shot_lists
     if (!shotList) {
       return NextResponse.json({ error: 'Shot list not found' }, { status: 404 })
     }
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Voice generation error:', error)
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
+      return NextResponse.json({ error: error.issues }, { status: 400 })
     }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Generation failed' },

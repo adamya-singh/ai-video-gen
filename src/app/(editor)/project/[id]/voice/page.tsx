@@ -75,7 +75,10 @@ export default function VoicePage({ params }: VoicePageProps) {
         if (assetsData) {
           const assetsByScene: Record<string, Asset> = {}
           assetsData.forEach(asset => {
-            assetsByScene[asset.scene_id] = asset
+            assetsByScene[asset.scene_id] = {
+              ...asset,
+              type: asset.type as 'image' | 'video' | 'voice',
+            }
           })
           setAssets(assetsByScene)
         }

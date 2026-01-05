@@ -67,7 +67,10 @@ export default function ScriptPage({ params }: ScriptPageProps) {
         .single()
 
       if (data) {
-        setScript(data)
+        setScript({
+          ...data,
+          outline: data.outline as OutlineSection[] | null,
+        })
         setEditedScript(data.full_script || '')
       }
     }

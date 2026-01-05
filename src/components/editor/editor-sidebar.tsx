@@ -17,9 +17,9 @@ import {
 } from 'lucide-react'
 
 interface Project extends Tables<'projects'> {
-  topics: Tables<'topics'>[] | null
-  scripts: Tables<'scripts'>[] | null
-  shot_lists: Tables<'shot_lists'>[] | null
+  topics: Tables<'topics'> | null
+  scripts: Tables<'scripts'> | null
+  shot_lists: Tables<'shot_lists'> | null
 }
 
 interface EditorSidebarProps {

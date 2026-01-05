@@ -51,7 +51,7 @@ Topic: ${topic.refined_statement}
 Title: ${topic.selected_title}
 
 Hook Angles:
-${topic.hook_angles?.map((h: { angle: string }) => `- ${h.angle}`).join('\n') || 'None specified'}
+${(topic.hook_angles as { angle: string }[] | null)?.map((h) => `- ${h.angle}`).join('\n') || 'None specified'}
 
 Target length: 1,500-2,500 words (5-15 minute video)
 Aspect ratio: ${project.aspect_ratio}
@@ -118,7 +118,7 @@ Aspect ratio: ${project.aspect_ratio}
   } catch (error) {
     console.error('Script generation error:', error)
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
+      return NextResponse.json({ error: error.issues }, { status: 400 })
     }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Generation failed' },

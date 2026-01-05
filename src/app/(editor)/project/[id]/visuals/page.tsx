@@ -183,7 +183,10 @@ export default function VisualsPage({ params }: VisualsPageProps) {
           .in('scene_id', scenesData.map(s => s.id))
 
         if (assetsData) {
-        setAssets(assetsData)
+        setAssets(assetsData.map(a => ({
+          ...a,
+          type: a.type as 'image' | 'video' | 'voice',
+        })))
       }
     }
   }, [projectId, supabase])
@@ -705,6 +708,7 @@ export default function VisualsPage({ params }: VisualsPageProps) {
                     {getSceneAssets(firstScene.id).video?.storage_path ? (
                       <video
                         src={getSceneAssets(firstScene.id).video!.storage_path!}
+                        crossOrigin="anonymous"
                         className="w-full h-full object-cover"
                         controls
                       />
@@ -875,6 +879,7 @@ export default function VisualsPage({ params }: VisualsPageProps) {
                         {sceneAssets.video?.storage_path ? (
                           <video
                             src={sceneAssets.video.storage_path}
+                            crossOrigin="anonymous"
                             className="w-full h-full object-cover"
                             controls
                             poster={sceneAssets.image?.storage_path || undefined}
@@ -1061,6 +1066,7 @@ function SceneCard({ scene, asset, type, isGenerating, onRegenerate, isFirst }: 
           ) : (
             <video
               src={asset.storage_path}
+              crossOrigin="anonymous"
               className="w-full h-full object-cover"
               controls
             />

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectOption } from '@/components/ui/select'
 import { X, Sparkles, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { Json } from '@/types/database'
 
 interface ProjectSettings {
   llm_model?: string
@@ -63,7 +64,7 @@ export function SettingsModal({
 
     const { error } = await supabase
       .from('projects')
-      .update({ settings: newSettings })
+      .update({ settings: newSettings as Json })
       .eq('id', projectId)
 
     if (!error) {

@@ -68,10 +68,14 @@ export default function TopicPage({ params }: TopicPageProps) {
         .single()
 
       if (data) {
-        setTopic(data)
+        const typedTopic = {
+          ...data,
+          hook_angles: data.hook_angles as HookAngle[] | null,
+        }
+        setTopic(typedTopic)
         setRawInput(data.raw_input || '')
         setSelectedTitle(data.selected_title || '')
-        if (data.hook_angles && data.hook_angles.length > 0) {
+        if (typedTopic.hook_angles && typedTopic.hook_angles.length > 0) {
           setSelectedHook(0)
         }
       }

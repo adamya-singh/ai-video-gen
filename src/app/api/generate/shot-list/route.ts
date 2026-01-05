@@ -128,7 +128,7 @@ Each scene should be 10-20 seconds of video content.
   } catch (error) {
     console.error('Shot list generation error:', error)
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
+      return NextResponse.json({ error: error.issues }, { status: 400 })
     }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Generation failed' },
