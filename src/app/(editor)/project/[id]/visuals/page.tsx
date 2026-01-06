@@ -41,6 +41,15 @@ interface Asset {
   type: 'image' | 'video' | 'voice'
   storage_path: string | null
   status: string | null
+  updated_at: string | null
+}
+
+// Helper to add cache-busting parameter to storage URLs
+function getAssetUrl(asset: Asset | undefined): string | null {
+  if (!asset?.storage_path) return null
+  const timestamp = asset.updated_at ? new Date(asset.updated_at).getTime() : Date.now()
+  const separator = asset.storage_path.includes('?') ? '&' : '?'
+  return `${asset.storage_path}${separator}t=${timestamp}`
 }
 
 interface ShotList {
@@ -557,10 +566,11 @@ export default function VisualsPage({ params }: VisualsPageProps) {
             <div className="space-y-6">
               <div className="rounded-xl border border-[rgb(45,45,55)] bg-[rgb(18,18,22)] overflow-hidden">
                 <div className="aspect-video bg-gradient-to-br from-[rgb(30,30,36)] to-[rgb(40,40,48)] relative">
-                  {getSceneAssets(firstScene.id).image?.storage_path ? (
+                  {getAssetUrl(getSceneAssets(firstScene.id).image) ? (
                     <img
-                      src={getSceneAssets(firstScene.id).image!.storage_path!}
+                      src={getAssetUrl(getSceneAssets(firstScene.id).image)!}
                       alt="Scene 1"
+                      crossOrigin="anonymous"
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -615,10 +625,11 @@ export default function VisualsPage({ params }: VisualsPageProps) {
                 <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
                   <div className="flex items-start gap-4">
                     <div className="w-32 h-20 rounded-lg overflow-hidden bg-[rgb(30,30,36)] flex-shrink-0">
-                      {getSceneAssets(firstScene.id).image?.storage_path && (
+                      {getAssetUrl(getSceneAssets(firstScene.id).image) && (
                         <img
-                          src={getSceneAssets(firstScene.id).image!.storage_path!}
+                          src={getAssetUrl(getSceneAssets(firstScene.id).image)!}
                           alt="Scene 1"
+                          crossOrigin="anonymous"
                           className="w-full h-full object-cover"
                         />
                       )}
@@ -689,10 +700,11 @@ export default function VisualsPage({ params }: VisualsPageProps) {
                 {/* First scene image (locked) */}
                 <div className="rounded-xl border border-[rgb(45,45,55)] bg-[rgb(18,18,22)] overflow-hidden">
                   <div className="aspect-video bg-gradient-to-br from-[rgb(30,30,36)] to-[rgb(40,40,48)] relative">
-                    {getSceneAssets(firstScene.id).image?.storage_path && (
+                    {getAssetUrl(getSceneAssets(firstScene.id).image) && (
                       <img
-                        src={getSceneAssets(firstScene.id).image!.storage_path!}
+                        src={getAssetUrl(getSceneAssets(firstScene.id).image)!}
                         alt="Scene 1"
+                        crossOrigin="anonymous"
                         className="w-full h-full object-cover"
                       />
                     )}
@@ -705,9 +717,9 @@ export default function VisualsPage({ params }: VisualsPageProps) {
                 {/* First video preview */}
                 <div className="rounded-xl border border-[rgb(45,45,55)] bg-[rgb(18,18,22)] overflow-hidden">
                   <div className="aspect-video bg-gradient-to-br from-[rgb(30,30,36)] to-[rgb(40,40,48)] relative">
-                    {getSceneAssets(firstScene.id).video?.storage_path ? (
+                    {getAssetUrl(getSceneAssets(firstScene.id).video) ? (
                       <video
-                        src={getSceneAssets(firstScene.id).video!.storage_path!}
+                        src={getAssetUrl(getSceneAssets(firstScene.id).video)!}
                         crossOrigin="anonymous"
                         className="w-full h-full object-cover"
                         controls
@@ -876,18 +888,19 @@ export default function VisualsPage({ params }: VisualsPageProps) {
                     >
                       {/* Video/Image preview */}
                       <div className="aspect-video bg-gradient-to-br from-[rgb(30,30,36)] to-[rgb(40,40,48)] relative">
-                        {sceneAssets.video?.storage_path ? (
+                        {getAssetUrl(sceneAssets.video) ? (
                           <video
-                            src={sceneAssets.video.storage_path}
+                            src={getAssetUrl(sceneAssets.video)!}
                             crossOrigin="anonymous"
                             className="w-full h-full object-cover"
                             controls
-                            poster={sceneAssets.image?.storage_path || undefined}
+                            poster={getAssetUrl(sceneAssets.image) || undefined}
                           />
-                        ) : sceneAssets.image?.storage_path ? (
+                        ) : getAssetUrl(sceneAssets.image) ? (
                           <img
-                            src={sceneAssets.image.storage_path}
+                            src={getAssetUrl(sceneAssets.image)!}
                             alt={`Scene ${scene.order_index}`}
+                            crossOrigin="anonymous"
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -1056,16 +1069,17 @@ function SceneCard({ scene, asset, type, isGenerating, onRegenerate, isFirst }: 
       isFirst ? "border-purple-500/30" : "border-[rgb(45,45,55)]"
     )}>
       <div className="aspect-video bg-gradient-to-br from-[rgb(30,30,36)] to-[rgb(40,40,48)] relative">
-        {asset?.storage_path ? (
+        {getAssetUrl(asset) ? (
           type === 'image' ? (
             <img
-              src={asset.storage_path}
+              src={getAssetUrl(asset)!}
               alt={`Scene ${scene.order_index}`}
+              crossOrigin="anonymous"
               className="w-full h-full object-cover"
             />
           ) : (
             <video
-              src={asset.storage_path}
+              src={getAssetUrl(asset)!}
               crossOrigin="anonymous"
               className="w-full h-full object-cover"
               controls
